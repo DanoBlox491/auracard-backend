@@ -3,103 +3,158 @@ from flask_cors import CORS
 import requests
 import datetime
 import os
+import urllib.parse
 
 app = Flask(__name__)
 CORS(app) 
 
+# THIS IS THE MISSING PART THAT FIXES THE "NOT FOUND" ERROR
 @app.route('/')
 def home():
     return "AuraCard Python Backend is Running!"
 
+# --- ROBLOX ---
 @app.route('/api/roblox_stats', methods=['POST'])
 def get_roblox_stats():
     data = request.json
     username = data.get('username')
-    
-    if not username:
-        return jsonify({"error": "No username provided"}), 400
+    if not username: return jsonify({"error": "No username provided"}), 400
 
     try:
-        # 1. Get User ID
         url = "https://users.roblox.com/v1/usernames/users"
         payload = {"usernames": [username], "excludeBannedUsers": True}
         res = requests.post(url, json=payload)
         user_data = res.json()
         
-        if not user_data["data"]:
-            return jsonify({"error": "Invalid or cracked username"}), 404
+        if not user_data["data"]: return jsonify({"error": "Invalid or cracked username"}), 404
             
         user_id = user_data["data"][0]["id"]
         display_name = user_data["data"][0]["displayName"]
 
-        # 2. Get Profile Data
-        profile_url = f"https://users.roblox.com/v1/users/{user_id}"
-        profile_res = requests.get(profile_url)
-        profile_data = profile_res.json()
-        
-        # 3. Calculate Account Age
-        created_date_str = profile_data.get("created", "")[:10] 
-        created_date = datetime.datetime.strptime(created_date_str, "%Y-%m-%d")
-        today = datetime.datetime.now()
-        days_old = (today - created_date).days
-        years_old = round(days_old / 365.25, 1)
+        profile_data = requests.get(f"https://users.roblox.com/v1/users/{user_id}").json()
+        created_date = datetime.datetime.strptime(profile_data.get("created", "")[:10], "%Y-%m-%d")
+        years_old = round((datetime.datetime.now() - created_date).days / 365.25, 1)
 
-        # 4. Get Followers Count
-        followers_url = f"https://friends.roblox.com/v1/users/{user_id}/followers/count"
-        followers_res = requests.get(followers_url)
-        followers_count = followers_res.json().get("count", 0)
+        followers_count = requests.get(f"https://friends.roblox.com/v1/users/{user_id}/followers/count").json().get("count", 0)
+        friends_count = requests.get(f"https://friends.roblox.com/v1/users/{user_id}/friends/count").json().get("count", 0)
 
-        # 5. Get Friends Count
-        friends_url = f"https://friends.roblox.com/v1/users/{user_id}/friends/count"
-        friends_res = requests.get(friends_url)
-        friends_count = friends_res.json().get("count", 0)
-
-        # 6. GET ROBLOX FULL BODY AVATAR IMAGE
         avatar_url = ""
         try:
-            thumb_url = f"https://thumbnails.roblox.com/v1/users/avatar?userIds={user_id}&size=720x720&format=Png&isCircular=false"
-            thumb_res = requests.get(thumb_url)
-            thumb_data = thumb_res.json()
-            if thumb_data["data"]:
-                avatar_url = thumb_data["data"][0]["imageUrl"]
-        except:
-            pass
+            thumb_data = requests.get(f"https://thumbnails.roblox.com/v1/users/avatar?userIds={user_id}&size=720x720&format=Png&isCircular=false").json()
+            if thumb_data["data"]: avatar_url = thumb_data["data"][0]["imageUrl"]
+        except: pass
 
-        # 7. THE ALGORITHM (Games Played & Won)
         hash_val = sum(ord(c) for c in username)
-        games_played = int((years_old * 150) + (hash_val % 200) + 50)
-        win_rate = 0.4 + ((hash_val % 20) / 100.0) 
-        games_won = int(games_played * win_rate)
-
-        # 8. Real Aura Score
-        aura_score = int((years_old * 1000) + (followers_count * 5) + (friends_count * 10))
+        aura_level = int(((years_old * 100) + (followers_count * 2) + (friends_count * 5)) / 50) + 1
+        if aura_level > 999: aura_level = 999
+        aura_streak = f"{(hash_val % 45) + 5}x Win Streak"
         
-        if years_old >= 8:
-            title = "OG Legend"
-        elif aura_score >= 5000:
-            title = "Roblox God"
-        elif aura_score >= 2000:
-            title = "Roblox Pro"
-        else:
-            title = "Roblox Player"
+        title = "Roblox God" if aura_level >= 100 else "Roblox Legend" if aura_level >= 50 else "Roblox Pro" if aura_level >= 20 else "Roblox Player"
 
         return jsonify({
-            "success": True,
-            "username": username,
-            "display_name": display_name,
-            "years_old": years_old,
-            "followers": followers_count,
-            "friends": friends_count,
-            "games_played": games_played,
-            "games_won": games_won,
-            "aura_score": aura_score,
-            "title": title,
-            "avatar_url": avatar_url,
-            "description": profile_data.get("description", "No bio set.")
+            "success": True, "username": username, "display_name": display_name,
+            "years_old": years_old, "followers": followers_count, "friends": friends_count,
+            "aura_level": aura_level, "aura_streak": aura_streak, "title": title,
+            "avatar_url": avatar_url, "description": profile_data.get("description", "No bio set.")
         })
+    except Exception as e: return jsonify({"error": str(e)}), 500
 
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+# --- MINECRAFT BEDROCK ---
+@app.route('/api/bedrock_stats', methods=['POST'])
+def get_bedrock_stats():
+    data = request.json
+    gamertag = data.get('username')
+    if not gamertag: return jsonify({"error": "No gamertag provided"}), 400
+
+    encoded_gamertag = urllib.parse.quote(gamertag)
+    avatar_url = ""
+    found_custom_skin = False
+
+    try:
+        xuid_res = requests.get(f"https://api.geysermc.org/v2/xbox/xuid/{encoded_gamertag}", timeout=5)
+        if xuid_res.status_code == 200:
+            xuid = xuid_res.json().get("xuid")
+            if xuid:
+                skin_res = requests.get(f"https://api.geysermc.org/v2/skin/{xuid}", timeout=5)
+                if skin_res.status_code == 200:
+                    texture_id = skin_res.json().get("texture_id")
+                    if texture_id:
+                        avatar_url = f"https://mc-heads.net/body/{texture_id}"
+                        found_custom_skin = True
+    except: pass
+
+    if not found_custom_skin:
+        avatar_url = "https://mc-heads.net/body/MHF_Steve" 
+
+    hash_val = sum(ord(c) for c in gamertag)
+    aura_level = (hash_val % 80) + 10
+    aura_streak = f"{(hash_val % 45) + 5}x Win Streak"
+    title = "Bedrock Legend" if aura_level > 70 else "Bedrock Pro" if aura_level > 40 else "Bedrock Player"
+
+    return jsonify({
+        "success": True, "username": gamertag, "display_name": gamertag,
+        "aura_level": aura_level, "aura_streak": aura_streak, "title": title,
+        "avatar_url": avatar_url, "description": "The Ultimate Bedrock Legend."
+    })
+
+# --- MINECRAFT JAVA ---
+@app.route('/api/java_skin', methods=['POST'])
+def get_java_skin():
+    data = request.json
+    username = data.get('username')
+    if not username: return jsonify({"error": "No username provided"}), 400
+
+    try:
+        uuid_res = requests.get(f"https://api.mojang.com/users/profiles/minecraft/{username}")
+        if uuid_res.status_code != 200: return jsonify({"error": "Player not found"}), 404
+        
+        player_uuid = uuid_res.json().get("id")
+        hash_val = sum(ord(c) for c in username)
+        aura_level = (hash_val % 80) + 10
+        aura_streak = f"{(hash_val % 45) + 5}x Win Streak"
+        title = "Java Legend" if aura_level > 70 else "Java Pro" if aura_level > 40 else "Java Player"
+
+        return jsonify({
+            "success": True, "username": username, "display_name": username,
+            "aura_level": aura_level, "aura_streak": aura_streak, "title": title,
+            "avatar_url": f"https://crafatar.com/renders/body/{player_uuid}?scale=6&overlay",
+            "description": "The Ultimate Java Legend."
+        })
+    except Exception as e: return jsonify({"error": str(e)}), 500
+
+# --- YOUTUBE ---
+@app.route('/api/yt_stats', methods=['POST'])
+def get_yt_stats():
+    data = request.json
+    handle = data.get('username').replace('@', '')
+    if not handle: return jsonify({"error": "No handle provided"}), 400
+
+    # ADD YOUR YOUTUBE API KEY HERE
+    YT_API_KEY = "YOUR_YOUTUBE_API_KEY" 
+
+    try:
+        res = requests.get(f"https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&forHandle={handle}&key={YT_API_KEY}")
+        data = res.json()
+
+        if not data.get("items"): return jsonify({"error": "YouTube channel not found"}), 404
+
+        channel = data["items"][0]
+        snippet = channel["snippet"]
+        stats = channel["statistics"]
+
+        subs = int(stats.get("subscriberCount", 0))
+        views = int(stats.get("viewCount", 0))
+        aura_level = int((subs / 100) + (views / 2000)) + 1
+        if aura_level > 999: aura_level = 999
+
+        title = "Content God" if aura_level >= 100 else "Verified Legend" if aura_level >= 50 else "Pro Creator"
+
+        return jsonify({
+            "success": True, "username": handle, "display_name": snippet["title"],
+            "aura_level": aura_level, "subs": subs, "views": views, "title": title,
+            "avatar_url": snippet["thumbnails"]["high"]["url"], "description": snippet.get("description", "No bio set.")[:100]
+        })
+    except Exception as e: return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
