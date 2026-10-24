@@ -36,20 +36,21 @@ def make_technoblade_card(platform):
         "success": True,
         "username": "Technoblade",
         "display_name": "Technoblade",
-        "title": "TECHNOBLADE NEVER DIES!",
+        "title": "LEGEND NEVER DIES",
         "description": "Technoblade never dies. 20,000 IQ. Potato King. Undefeated in the colosseum. One of us.",
-        "aura_level": 9999,
+        "aura_level": ∞,
         "avatar_url": "https://mc-heads.net/avatar/Technoblade/300"
     }
 
     if platform == "youtube":
         base["subs"] = 9999999
         base["views"] = 999999999
+        base["aura_display"] = "∞"   # 🐷 INFINITY AURA (display only — JSON can't hold real Infinity)
     else:
         # Java + Bedrock
         base["games_played"] = "999999"
         base["games_won"] = "999999"
-        base["aura_streak"] = "9999x Win Streak"
+        base["aura_streak"] = "∞ Win Streak"
         base["friends"] = "9999999"
 
     return base
@@ -220,7 +221,7 @@ def get_java_skin():
     except Exception as e: return jsonify({"error": str(e)}), 500
 
 
-# --- YOUTUBE ---  (Technoblade easter egg ✅)
+# --- YOUTUBE ---  (Technoblade easter egg ✅ with ∞ AURA)
 @app.route('/api/yt_stats', methods=['POST'])
 def get_yt_stats():
     data = request.json
