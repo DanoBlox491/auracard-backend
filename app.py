@@ -8,7 +8,6 @@ import urllib.parse
 app = Flask(__name__)
 CORS(app) 
 
-# THIS IS THE MISSING PART THAT FIXES THE "NOT FOUND" ERROR
 @app.route('/')
 def home():
     return "AuraCard Python Backend is Running!"
@@ -18,9 +17,13 @@ def home():
 def get_roblox_stats():
     data = request.json
     username = data.get('username')
+    manual_game = data.get('most_played_game', 'Rivals')
+    manual_played = int(data.get('games_played', 0))
+
     if not username: return jsonify({"error": "No username provided"}), 400
 
     try:
+        # 1. Fetch REAL Roblox Data (Bio, Friends, Avatar, Age)
         url = "https://users.roblox.com/v1/usernames/users"
         payload = {"usernames": [username], "excludeBannedUsers": True}
         res = requests.post(url, json=payload)
@@ -35,7 +38,6 @@ def get_roblox_stats():
         created_date = datetime.datetime.strptime(profile_data.get("created", "")[:10], "%Y-%m-%d")
         years_old = round((datetime.datetime.now() - created_date).days / 365.25, 1)
 
-        followers_count = requests.get(f"https://friends.roblox.com/v1/users/{user_id}/followers/count").json().get("count", 0)
         friends_count = requests.get(f"https://friends.roblox.com/v1/users/{user_id}/friends/count").json().get("count", 0)
 
         avatar_url = ""
@@ -44,18 +46,37 @@ def get_roblox_stats():
             if thumb_data["data"]: avatar_url = thumb_data["data"][0]["imageUrl"]
         except: pass
 
-        hash_val = sum(ord(c) for c in username)
-        aura_level = int(((years_old * 100) + (followers_count * 2) + (friends_count * 5)) / 50) + 1
-        if aura_level > 999: aura_level = 999
-        aura_streak = f"{(hash_val % 45) + 5}x Win Streak"
-        
-        title = "Roblox God" if aura_level >= 100 else "Roblox Legend" if aura_level >= 50 else "Roblox Pro" if aura_level >= 20 else "Roblox Player"
+        # 2. THE AURA ALGORITHM (Based on manual Games Played)
+        if manual_played > 0:
+            games_won = int(manual_played * 0.65) # Assume 65% win rate for the flex
+            aura_level = int((games_won / 10) + (years_old * 5)) + 10
+            if aura_level > 999: aura_level = 999
+            aura_streak = f"{(games_won % 45) + 5}x Win Streak"
+        else:
+            games_won = 0
+            aura_level = int(years_old * 10) + 10
+            aura_streak = "0x Win Streak"
+
+        # 3. Title Logic
+        if aura_level >= 100: title = "Roblox God"
+        elif aura_level >= 50: title = "Roblox Legend"
+        elif aura_level >= 20: title = "Roblox Pro"
+        else: title = "Roblox Player"
 
         return jsonify({
-            "success": True, "username": username, "display_name": display_name,
-            "years_old": years_old, "followers": followers_count, "friends": friends_count,
-            "aura_level": aura_level, "aura_streak": aura_streak, "title": title,
-            "avatar_url": avatar_url, "description": profile_data.get("description", "No bio set.")
+            "success": True, 
+            "username": username, 
+            "display_name": display_name,
+            "years_old": years_old, 
+            "friends": friends_count, 
+            "games_played": manual_played,
+            "games_won": games_won,
+            "aura_level": aura_level, 
+            "aura_streak": aura_streak, 
+            "most_played_game": manual_game,
+            "title": title,
+            "avatar_url": avatar_url, 
+            "description": profile_data.get("description", "No bio set.")
         })
     except Exception as e: return jsonify({"error": str(e)}), 500
 
@@ -129,7 +150,6 @@ def get_yt_stats():
     handle = data.get('username').replace('@', '')
     if not handle: return jsonify({"error": "No handle provided"}), 400
 
-    # ADD YOUR YOUTUBE API KEY HERE
     YT_API_KEY = "YOUR_YOUTUBE_API_KEY" 
 
     try:
