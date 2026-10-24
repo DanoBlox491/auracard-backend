@@ -8,6 +8,9 @@ import urllib.parse
 app = Flask(__name__)
 CORS(app) 
 
+# --- PASTE YOUR YOUTUBE API KEY HERE ---
+YT_API_KEY = "AIzaSyD4LinheoCahp6rp7xVHKFiYjGK3Q1PftY" 
+
 @app.route('/')
 def home():
     return "AuraCard Python Backend is Running!"
@@ -18,12 +21,12 @@ def get_roblox_stats():
     data = request.json
     username = data.get('username')
     manual_game = data.get('most_played_game', 'Rivals')
-    manual_played = int(data.get('games_played', 0))
+    manual_wins = int(data.get('games_won', 0))
 
     if not username: return jsonify({"error": "No username provided"}), 400
 
     try:
-        # 1. Fetch REAL Roblox Data (Bio, Friends, Avatar, Age)
+        # Fetch REAL Roblox Data
         url = "https://users.roblox.com/v1/usernames/users"
         payload = {"usernames": [username], "excludeBannedUsers": True}
         res = requests.post(url, json=payload)
@@ -46,18 +49,20 @@ def get_roblox_stats():
             if thumb_data["data"]: avatar_url = thumb_data["data"][0]["imageUrl"]
         except: pass
 
-        # 2. THE AURA ALGORITHM (Based on manual Games Played)
-        if manual_played > 0:
-            games_won = int(manual_played * 0.65) # Assume 65% win rate for the flex
+        # AURA CALCULATION (Uses Wins if provided, else uses Algorithm)
+        if manual_wins > 0:
+            games_won = manual_wins
+            games_played = int(games_won / 0.65) # Reverse calculate plays based on 65% win rate
             aura_level = int((games_won / 10) + (years_old * 5)) + 10
-            if aura_level > 999: aura_level = 999
-            aura_streak = f"{(games_won % 45) + 5}x Win Streak"
         else:
-            games_won = 0
-            aura_level = int(years_old * 10) + 10
-            aura_streak = "0x Win Streak"
+            hash_val = sum(ord(c) for c in username)
+            games_played = int((years_old * 150) + (hash_val % 200) + 50)
+            games_won = int(games_played * 0.65)
+            aura_level = int((games_won / 10) + (years_old * 5)) + 10
 
-        # 3. Title Logic
+        if aura_level > 999: aura_level = 999
+        aura_streak = f"{(games_won % 45) + 5}x Win Streak"
+
         if aura_level >= 100: title = "Roblox God"
         elif aura_level >= 50: title = "Roblox Legend"
         elif aura_level >= 20: title = "Roblox Pro"
@@ -69,7 +74,7 @@ def get_roblox_stats():
             "display_name": display_name,
             "years_old": years_old, 
             "friends": friends_count, 
-            "games_played": manual_played,
+            "games_played": games_played,
             "games_won": games_won,
             "aura_level": aura_level, 
             "aura_streak": aura_streak, 
@@ -149,8 +154,6 @@ def get_yt_stats():
     data = request.json
     handle = data.get('username').replace('@', '')
     if not handle: return jsonify({"error": "No handle provided"}), 400
-
-    YT_API_KEY = "YOUR_YOUTUBE_API_KEY" 
 
     try:
         res = requests.get(f"https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&forHandle={handle}&key={YT_API_KEY}")
