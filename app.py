@@ -8,8 +8,10 @@ import urllib.parse
 app = Flask(__name__)
 CORS(app) 
 
-# --- YOUTUBE API KEY ---
-YT_API_KEY = os.environ.get("yt api key") 
+# --- YOUTUBE API KEY (Now with sanitization!) ---
+# This strips out quotes and spaces just in case Render saved them by accident.
+raw_key = os.environ.get("YT_API_KEY", "AIzaSyA03pCB3JMh-YYPUfGi7nbbxaFqsV7YyCE")
+YT_API_KEY = raw_key.strip().replace('"', '').replace("'", "")
 
 @app.route('/')
 def home():
@@ -146,7 +148,6 @@ def get_bedrock_stats():
     aura_level = (hash_val % 80) + 10
     aura_streak = f"{(hash_val % 45) + 5}x Win Streak"
     
-    # 🧱 REAL MINECRAFT STATS (Fake Algorithm)
     blocks_mined = (hash_val * 1337) % 2000000
     mobs_killed = (hash_val * 67) % 50000
     diamonds_found = (hash_val * 12) % 5000
@@ -182,7 +183,6 @@ def get_java_skin():
         aura_level = (hash_val % 80) + 10
         aura_streak = f"{(hash_val % 45) + 5}x Win Streak"
         
-        # 🧱 REAL MINECRAFT STATS (Fake Algorithm)
         blocks_mined = (hash_val * 1337) % 2000000
         mobs_killed = (hash_val * 67) % 50000
         diamonds_found = (hash_val * 12) % 5000
@@ -210,6 +210,9 @@ def get_yt_stats():
 
     if is_technoblade(raw):
         return jsonify(make_technoblade_card("youtube"))
+    
+    if not YT_API_KEY:
+         return jsonify({"error": "Server Error: YouTube API Key is missing on Render."}), 500
 
     handle = raw.replace('@', '').strip()
     
