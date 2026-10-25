@@ -9,8 +9,7 @@ app = Flask(__name__)
 CORS(app) 
 
 # --- YOUTUBE API KEY ---
-# Reads from Render env var first, falls back to hardcoded for safety
-YT_API_KEY = os.environ.get("AIzaSyD4LinheoCahp6rp7xVHKFiYjGK3Q1PftY") 
+YT_API_KEY = os.environ.get("YT_API_KEY", "AIzaSyD4LinheoCahp6rp7xVHKFiYjGK3Q1PftY") 
 
 @app.route('/')
 def home():
@@ -19,51 +18,42 @@ def home():
 
 # =========================================================
 #  🐷👑 SECRET EASTER EGG: TECHNOBLADE
-#  Works on: Minecraft Java, Minecraft Bedrock, YouTube.
-#  Does NOT work on Roblox (stays pure).
-#  Technoblade never dies.
 # =========================================================
 def is_technoblade(name):
-    """Case-insensitive check, also allows @ handle prefix."""
     if not name:
         return False
     return str(name).strip().lstrip('@').lower() == "technoblade"
 
 
 def make_technoblade_card(platform):
-    """Returns THE NEVER DIES LEGEND card data for the given platform."""
     base = {
         "success": True,
         "username": "Technoblade",
         "display_name": "Technoblade",
-        "title": "LEGEND NEVER DIES",
+        "title": "NEVER DIES LEGEND",
         "description": "Technoblade never dies. 20,000 IQ. Potato King. Undefeated in the colosseum. One of us.",
-        "aura_level": ∞,
+        "aura_level": 9999,
         "avatar_url": "https://mc-heads.net/avatar/Technoblade/300"
     }
-
     if platform == "youtube":
         base["subs"] = 9999999
         base["views"] = 999999999
-        base["aura_display"] = "∞"   # 🐷 INFINITY AURA (display only — JSON can't hold real Infinity)
+        base["aura_display"] = "∞"
     else:
-        # Java + Bedrock
         base["games_played"] = "999999"
         base["games_won"] = "999999"
-        base["aura_streak"] = "∞ Win Streak"
+        base["aura_streak"] = "9999x Win Streak"
         base["friends"] = "9999999"
-
     return base
 
 
-# --- ROBLOX ---  (NO easter egg here, stays pure)
+# --- ROBLOX ---
 @app.route('/api/roblox_stats', methods=['POST'])
 def get_roblox_stats():
     data = request.json
     username = data.get('username')
     manual_game = data.get('most_played_game', 'Rivals')
     
-    # Safe int conversion (handles empty, decimals, weird input)
     try:
         manual_wins = int(float(data.get('games_won', 0) or 0))
     except (ValueError, TypeError):
@@ -72,7 +62,6 @@ def get_roblox_stats():
     if not username: return jsonify({"error": "No username provided"}), 400
 
     try:
-        # Fetch REAL Roblox Data
         url = "https://users.roblox.com/v1/usernames/users"
         payload = {"usernames": [username], "excludeBannedUsers": True}
         res = requests.post(url, json=payload)
@@ -95,10 +84,9 @@ def get_roblox_stats():
             if thumb_data["data"]: avatar_url = thumb_data["data"][0]["imageUrl"]
         except: pass
 
-        # AURA CALCULATION (Uses Wins if provided, else uses Algorithm)
         if manual_wins > 0:
             games_won = manual_wins
-            games_played = int(games_won / 0.65) # Reverse calculate plays based on 65% win rate
+            games_played = int(games_won / 0.65)
             aura_level = int((games_won / 10) + (years_old * 5)) + 10
         else:
             hash_val = sum(ord(c) for c in username)
@@ -115,31 +103,22 @@ def get_roblox_stats():
         else: title = "Roblox Player"
 
         return jsonify({
-            "success": True, 
-            "username": username, 
-            "display_name": display_name,
-            "years_old": years_old, 
-            "friends": friends_count, 
-            "games_played": games_played,
-            "games_won": games_won,
-            "aura_level": aura_level, 
-            "aura_streak": aura_streak, 
-            "most_played_game": manual_game,
-            "title": title,
-            "avatar_url": avatar_url, 
+            "success": True, "username": username, "display_name": display_name,
+            "years_old": years_old, "friends": friends_count, "games_played": games_played,
+            "games_won": games_won, "aura_level": aura_level, "aura_streak": aura_streak, 
+            "most_played_game": manual_game, "title": title, "avatar_url": avatar_url, 
             "description": profile_data.get("description", "No bio set.")
         })
     except Exception as e: return jsonify({"error": str(e)}), 500
 
 
-# --- MINECRAFT BEDROCK ---  (Technoblade easter egg ✅)
+# --- MINECRAFT BEDROCK ---
 @app.route('/api/bedrock_stats', methods=['POST'])
 def get_bedrock_stats():
     data = request.json
     gamertag = data.get('username')
     if not gamertag: return jsonify({"error": "No gamertag provided"}), 400
 
-    # 🐷👑 EASTER EGG CHECK
     if is_technoblade(gamertag):
         return jsonify(make_technoblade_card("bedrock"))
 
@@ -160,14 +139,12 @@ def get_bedrock_stats():
                         found_custom_skin = True
     except: pass
 
-    if not found_custom_skin:
-        avatar_url = "https://mc-heads.net/body/MHF_Steve" 
+    if not found_custom_skin: avatar_url = "https://mc-heads.net/body/MHF_Steve" 
 
     hash_val = sum(ord(c) for c in gamertag)
     aura_level = (hash_val % 80) + 10
     aura_streak = f"{(hash_val % 45) + 5}x Win Streak"
     
-    # Generated stats so frontend doesn't show "0"
     games_played = (hash_val % 5000) + 500
     win_rate = 0.55 + ((hash_val % 30) / 100.0)
     games_won = int(games_played * win_rate)
@@ -183,14 +160,13 @@ def get_bedrock_stats():
     })
 
 
-# --- MINECRAFT JAVA ---  (Technoblade easter egg ✅)
+# --- MINECRAFT JAVA ---
 @app.route('/api/java_skin', methods=['POST'])
 def get_java_skin():
     data = request.json
     username = data.get('username')
     if not username: return jsonify({"error": "No username provided"}), 400
 
-    # 🐷👑 EASTER EGG CHECK
     if is_technoblade(username):
         return jsonify(make_technoblade_card("java"))
 
@@ -203,7 +179,6 @@ def get_java_skin():
         aura_level = (hash_val % 80) + 10
         aura_streak = f"{(hash_val % 45) + 5}x Win Streak"
         
-        # Generated stats so frontend doesn't show "0"
         games_played = (hash_val % 5000) + 500
         win_rate = 0.55 + ((hash_val % 30) / 100.0)
         games_won = int(games_played * win_rate)
@@ -221,27 +196,60 @@ def get_java_skin():
     except Exception as e: return jsonify({"error": str(e)}), 500
 
 
-# --- YOUTUBE ---  (Technoblade easter egg ✅ with ∞ AURA)
+# --- YOUTUBE (NOW WITH DETAILED GOOGLE ERRORS!) ---
 @app.route('/api/yt_stats', methods=['POST'])
 def get_yt_stats():
     data = request.json
     raw = data.get('username') or ''
-    
     if not raw: return jsonify({"error": "No handle provided"}), 400
 
-    # 🐷👑 EASTER EGG CHECK — BEFORE the API call (saves your YouTube quota!)
     if is_technoblade(raw):
         return jsonify(make_technoblade_card("youtube"))
 
-    handle = raw.replace('@', '')
-
+    # Clean up the input
+    handle = raw.replace('@', '').strip()
+    
     try:
+        # ATTEMPT 1: Try exact Handle
         res = requests.get(f"https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&forHandle={handle}&key={YT_API_KEY}")
         data = res.json()
+        
+        # 🚨 CATCH GOOGLE API ERRORS
+        if "error" in data:
+            err_msg = data["error"].get("message", "Unknown Google API Error")
+            return jsonify({"error": f"YouTube API Error: {err_msg}"}), 500
 
-        if not data.get("items"): return jsonify({"error": "YouTube channel not found"}), 404
+        items = data.get("items", [])
 
-        channel = data["items"][0]
+        # ATTEMPT 2: Try legacy Username
+        if not items:
+            res = requests.get(f"https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&forUsername={handle}&key={YT_API_KEY}")
+            data = res.json()
+            if "error" in data:
+                err_msg = data["error"].get("message", "Unknown Google API Error")
+                return jsonify({"error": f"YouTube API Error: {err_msg}"}), 500
+            items = data.get("items", [])
+
+        # ATTEMPT 3: Search by channel name
+        if not items:
+            search_res = requests.get(f"https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&q={handle}&key={YT_API_KEY}&maxResults=1")
+            search_data = search_res.json()
+            
+            if "error" in search_data:
+                err_msg = search_data["error"].get("message", "Unknown Google API Error")
+                return jsonify({"error": f"YouTube API Error: {err_msg}"}), 500
+
+            search_items = search_data.get("items", [])
+            if search_items:
+                channel_id = search_items[0]["snippet"]["channelId"]
+                res = requests.get(f"https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id={channel_id}&key={YT_API_KEY}")
+                data = res.json()
+                items = data.get("items", [])
+
+        if not items: 
+            return jsonify({"error": "YouTube channel not found. Try their exact @handle!"}), 404
+
+        channel = items[0]
         snippet = channel["snippet"]
         stats = channel["statistics"]
 
