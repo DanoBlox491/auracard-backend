@@ -9,7 +9,7 @@ app = Flask(__name__)
 CORS(app) 
 
 # --- YOUTUBE API KEY ---
-YT_API_KEY = os.environ.get("YT_API_KEY", "AIzaSyD4LinheoCahp6rp7xVHKFiYjGK3Q1PftY") 
+YT_API_KEY = os.environ.get("AIzaSyD4LinheoCahp6rp7xVHKFiYjGK3Q1PftY") 
 
 @app.route('/')
 def home():
@@ -40,10 +40,11 @@ def make_technoblade_card(platform):
         base["views"] = 999999999
         base["aura_display"] = "∞"
     else:
-        base["games_played"] = "999999"
-        base["games_won"] = "999999"
+        base["blocks_mined"] = "999,999,999"
+        base["mobs_killed"] = "999,999,999"
+        base["diamonds_found"] = "99,999,999"
+        base["playtime"] = "99,999 Hours"
         base["aura_streak"] = "9999x Win Streak"
-        base["friends"] = "9999999"
     return base
 
 
@@ -145,17 +146,19 @@ def get_bedrock_stats():
     aura_level = (hash_val % 80) + 10
     aura_streak = f"{(hash_val % 45) + 5}x Win Streak"
     
-    games_played = (hash_val % 5000) + 500
-    win_rate = 0.55 + ((hash_val % 30) / 100.0)
-    games_won = int(games_played * win_rate)
-    friends = (hash_val % 300) + 20
+    # 🧱 REAL MINECRAFT STATS (Fake Algorithm)
+    blocks_mined = (hash_val * 1337) % 2000000
+    mobs_killed = (hash_val * 67) % 50000
+    diamonds_found = (hash_val * 12) % 5000
+    playtime = (hash_val % 800) + 100
 
     title = "Bedrock Legend" if aura_level > 70 else "Bedrock Pro" if aura_level > 40 else "Bedrock Player"
 
     return jsonify({
         "success": True, "username": gamertag, "display_name": gamertag,
         "aura_level": aura_level, "aura_streak": aura_streak, "title": title,
-        "games_played": str(games_played), "games_won": str(games_won), "friends": str(friends),
+        "blocks_mined": f"{blocks_mined:,}", "mobs_killed": f"{mobs_killed:,}", 
+        "diamonds_found": f"{diamonds_found:,}", "playtime": f"{playtime} Hours",
         "avatar_url": avatar_url, "description": "The Ultimate Bedrock Legend."
     })
 
@@ -179,24 +182,26 @@ def get_java_skin():
         aura_level = (hash_val % 80) + 10
         aura_streak = f"{(hash_val % 45) + 5}x Win Streak"
         
-        games_played = (hash_val % 5000) + 500
-        win_rate = 0.55 + ((hash_val % 30) / 100.0)
-        games_won = int(games_played * win_rate)
-        friends = (hash_val % 300) + 20
+        # 🧱 REAL MINECRAFT STATS (Fake Algorithm)
+        blocks_mined = (hash_val * 1337) % 2000000
+        mobs_killed = (hash_val * 67) % 50000
+        diamonds_found = (hash_val * 12) % 5000
+        playtime = (hash_val % 800) + 100
 
         title = "Java Legend" if aura_level > 70 else "Java Pro" if aura_level > 40 else "Java Player"
 
         return jsonify({
             "success": True, "username": username, "display_name": username,
             "aura_level": aura_level, "aura_streak": aura_streak, "title": title,
-            "games_played": str(games_played), "games_won": str(games_won), "friends": str(friends),
+            "blocks_mined": f"{blocks_mined:,}", "mobs_killed": f"{mobs_killed:,}", 
+            "diamonds_found": f"{diamonds_found:,}", "playtime": f"{playtime} Hours",
             "avatar_url": f"https://crafatar.com/renders/body/{player_uuid}?scale=6&overlay",
             "description": "The Ultimate Java Legend."
         })
     except Exception as e: return jsonify({"error": str(e)}), 500
 
 
-# --- YOUTUBE (NOW WITH DETAILED GOOGLE ERRORS!) ---
+# --- YOUTUBE ---
 @app.route('/api/yt_stats', methods=['POST'])
 def get_yt_stats():
     data = request.json
@@ -206,39 +211,26 @@ def get_yt_stats():
     if is_technoblade(raw):
         return jsonify(make_technoblade_card("youtube"))
 
-    # Clean up the input
     handle = raw.replace('@', '').strip()
     
     try:
-        # ATTEMPT 1: Try exact Handle
         res = requests.get(f"https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&forHandle={handle}&key={YT_API_KEY}")
         data = res.json()
         
-        # 🚨 CATCH GOOGLE API ERRORS
         if "error" in data:
             err_msg = data["error"].get("message", "Unknown Google API Error")
             return jsonify({"error": f"YouTube API Error: {err_msg}"}), 500
 
         items = data.get("items", [])
 
-        # ATTEMPT 2: Try legacy Username
         if not items:
             res = requests.get(f"https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&forUsername={handle}&key={YT_API_KEY}")
             data = res.json()
-            if "error" in data:
-                err_msg = data["error"].get("message", "Unknown Google API Error")
-                return jsonify({"error": f"YouTube API Error: {err_msg}"}), 500
             items = data.get("items", [])
 
-        # ATTEMPT 3: Search by channel name
         if not items:
             search_res = requests.get(f"https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&q={handle}&key={YT_API_KEY}&maxResults=1")
             search_data = search_res.json()
-            
-            if "error" in search_data:
-                err_msg = search_data["error"].get("message", "Unknown Google API Error")
-                return jsonify({"error": f"YouTube API Error: {err_msg}"}), 500
-
             search_items = search_data.get("items", [])
             if search_items:
                 channel_id = search_items[0]["snippet"]["channelId"]
