@@ -9,7 +9,7 @@ app = Flask(__name__)
 CORS(app) 
 
 # --- YOUTUBE API KEY ---
-YT_API_KEY = os.environ.get("AIzaSyD4LinheoCahp6rp7xVHKFiYjGK3Q1PftY") 
+YT_API_KEY = os.environ.get("yt api key") 
 
 @app.route('/')
 def home():
